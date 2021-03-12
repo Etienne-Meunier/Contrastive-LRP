@@ -14,11 +14,33 @@ import torchvision.transforms as transforms
 
 import os
 import sys
+sys.path.append(f'{os.environ["Codinria"]}/Contrastive-LRP/CLRP')
+
 from PIL import Image
 from clrp_lib import *
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+def register_hooks_sal(model) :
+    getattr(model, 'convSaliency1_fused').register_forward_hook(conv_forward_hook)
+    getattr(model, 'convSaliency1_fused').register_backward_hook(FirstConv_backward_hook)
+
+
+    for l in ['convSaliency2_fused', 'convSaliency3_fused'] :
+        getattr(model, l).register_forward_hook(conv_forward_hook)
+        getattr(model, l).register_backward_hook(conv_backward_hook)
+
+    for l in ['poolSaliency1', 'poolSaliency2'] :
+         getattr(model, l).register_forward_hook(maxpool_forward_hook)
+         getattr(model, l).register_backward_hook(backmaxpoolhook_wta)
+
+
+    model.flatten.register_forward_hook(flatten_forward)
+    model.flatten.register_backward_hook(flatten_backward)
+
+    getattr(model, 'fcSaliency1').register_forward_hook(linear_forward_hook)
+    getattr(model, 'fcSaliency1').register_backward_hook(linear_backward_hook)
+    return model
 
 # register forward and backward hook functions in Conv, MaxPooling, Linear layers of the loaded model
 def register_hooks(model=None):
@@ -36,12 +58,12 @@ def register_hooks(model=None):
     for i in [0, 3, 6]:
         model.classifier[i].register_forward_hook(linear_forward_hook)
         model.classifier[i].register_backward_hook(linear_backward_hook)
-        
+
     return model
 
 # to create a saliency map of the target signal or the contrastive signal
 def clrp(out, target_class, contrastive_signal = False, CLRP = 'type1'):
-    
+
     # initialize the relevance, i.e., the logit score
     Nega_flag_ = False
     if contrastive_signal == False:
@@ -73,51 +95,44 @@ def visualize(sm_lrp, sm_contrast, name):
     sm_clrp_ = (sm_clrp[0]/sm_clrp.max()).transpose((1, 2, 0))
     sm_clrp_ = np.maximum(0, sm_clrp_)
     Image.fromarray((sm_clrp_*255).astype(np.uint8), mode='RGB').save('SMs/'+ name + '_CLRP.png')
-    
+
     print(name, 'Explaining Classification finished!')
 
-
-## load pre-trained VGG16 model and register hook functions in the loaded model
-model = models.vgg16(pretrained=True)
-model = register_hooks(model=model)
-model = model.eval()
-model = model.to(device)
-
-## create a preprocessor
-preprocess = transforms.Compose([
-                    transforms.Resize((224, 224)),
-                    transforms.ToTensor(),
-                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
-
-## model prediction and Gradient backpropagation
-images = ['ze1', 'ze2', 'ze3', 'ze4']
-
-
-for i in range(len(images)):
-    
-    # laod and preprocess the image
-    img = Image.open('imgs/'+images[i] + '.jpg')
-    img_tensor = preprocess(img).to(device)
-    img_variable = Variable(img_tensor.unsqueeze_(0), requires_grad=True)
-
-    # classify the loaded image
-    out = model(img_variable)
-
-    # specify a target class to create saliency maps
-    # 340, 386 correspond to Zebra and Africa_elephant in ImageNet dataset, respectively.
-    target_class = 386
-
-    sm_lrp = clrp(out, target_class, contrastive_signal = False)
-    sm_contrast = clrp(out, target_class, contrastive_signal = True, CLRP = 'type1')
-     
-    #visualize the relevance score
-    visualize(sm_lrp, sm_contrast, images[i] + '_' + str(target_class))
-
-
-    
+if __name__ == '__main__':
+    ## load pre-trained VGG16 model and register hook functions in the loaded model
+    model = models.vgg16(pretrained=True)
+    model = register_hooks(model=model)
+    model = model.eval()
+    model = model.to(device)
 
 
 
+    ## create a preprocessor
+    preprocess = transforms.Compose([
+                        transforms.Resize((224, 224)),
+                        transforms.ToTensor(),
+                        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
+
+    ## model prediction and Gradient backpropagation
+    images = ['ze1', 'ze2', 'ze3', 'ze4']
 
 
+    for i in range(len(images)):
 
+        # laod and preprocess the image
+        img = Image.open('imgs/'+images[i] + '.jpg')
+        img_tensor = preprocess(img).to(device)
+        img_variable = Variable(img_tensor.unsqueeze_(0), requires_grad=True)
+
+        # classify the loaded image
+        out = model(img_variable)
+
+        # specify a target class to create saliency maps
+        # 340, 386 correspond to Zebra and Africa_elephant in ImageNet dataset, respectively.
+        target_class = 386
+
+        sm_lrp = clrp(out, target_class, contrastive_signal = False)
+        sm_contrast = clrp(out, target_class, contrastive_signal = True, CLRP = 'type1')
+
+        #visualize the relevance score
+        visualize(sm_lrp, sm_contrast, images[i] + '_' + str(target_class))
