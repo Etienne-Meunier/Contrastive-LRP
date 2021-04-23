@@ -14,7 +14,7 @@ import torchvision.transforms as transforms
 
 import os
 import sys
-sys.path.append(f'{os.environ["Codinria"]}/Contrastive-LRP/CLRP')
+sys.path.append(f'./Contrastive-LRP/CLRP')
 
 from PIL import Image
 from clrp_lib import *
