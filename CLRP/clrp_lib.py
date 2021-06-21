@@ -5,7 +5,7 @@ from torch.autograd import Variable
 import copy
 import numpy as np
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = 'cpu'#torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # initialise and return the relevance value
 R = None
@@ -87,10 +87,10 @@ def FirstConv_backward_hook(self, grad_input, grad_output):
 
         Input = Variable(self.input.data, requires_grad=True).to(device)
 
-        Low = Variable(torch.ones(self.input.shape).cuda() * self.input.flatten(2).max(axis=2).values[:,:,None, None],
+        Low = Variable(torch.ones(self.input.shape).to(device) * self.input.flatten(2).max(axis=2).values[:,:,None, None],
                        requires_grad=True)
 
-        High = Variable(torch.ones(self.input.shape).cuda() * self.input.flatten(2).min(axis=2).values[:,:,None, None],
+        High = Variable(torch.ones(self.input.shape).to(device) * self.input.flatten(2).min(axis=2).values[:,:,None, None],
                        requires_grad=True)
 
         Z1 = F.conv2d(Input, self.weight, None, self.stride,

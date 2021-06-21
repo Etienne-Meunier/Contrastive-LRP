@@ -19,27 +19,27 @@ sys.path.append(f'./Contrastive-LRP/CLRP')
 from PIL import Image
 from clrp_lib import *
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = 'cpu'#torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def register_hooks_sal(model) :
     getattr(model, 'convSaliency1_fused').register_forward_hook(conv_forward_hook)
-    getattr(model, 'convSaliency1_fused').register_backward_hook(FirstConv_backward_hook)
+    getattr(model, 'convSaliency1_fused').register_full_backward_hook(FirstConv_backward_hook)
 
 
     for l in ['convSaliency2_fused', 'convSaliency3_fused'] :
         getattr(model, l).register_forward_hook(conv_forward_hook)
-        getattr(model, l).register_backward_hook(conv_backward_hook)
+        getattr(model, l).register_full_backward_hook(conv_backward_hook)
 
     for l in ['poolSaliency1', 'poolSaliency2'] :
          getattr(model, l).register_forward_hook(maxpool_forward_hook)
-         getattr(model, l).register_backward_hook(backmaxpoolhook_wta)
+         getattr(model, l).register_full_backward_hook(backmaxpoolhook_wta)
 
 
     model.flatten.register_forward_hook(flatten_forward)
-    model.flatten.register_backward_hook(flatten_backward)
+    model.flatten.register_full_backward_hook(flatten_backward)
 
     getattr(model, 'fcSaliency1').register_forward_hook(linear_forward_hook)
-    getattr(model, 'fcSaliency1').register_backward_hook(linear_backward_hook)
+    getattr(model, 'fcSaliency1').register_full_backward_hook(linear_backward_hook)
     return model
 
 # register forward and backward hook functions in Conv, MaxPooling, Linear layers of the loaded model
